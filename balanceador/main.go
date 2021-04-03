@@ -16,11 +16,8 @@ type Qix struct {
 
 func main() {
 	router := mux.NewRouter()
-	// Create
 	router.HandleFunc("/qix", createQix).Methods("POST")
-
 	log.Fatal(http.ListenAndServe(":8080", router))
-
 }
 
 func createQix(w http.ResponseWriter, r *http.Request) {
@@ -29,8 +26,8 @@ func createQix(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Transação recebida: ", q)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(q)
+	// w.Header().Set("Content-Type", "application/json")
+	// json.NewEncoder(w).Encode(q)
 }
 
 // curl -H 'Content-Type: application/json' -d '{"transacao":"pagamento","complexidade":9}' -X POST http://localhost:8080/qix

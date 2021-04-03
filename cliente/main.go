@@ -16,12 +16,14 @@ type Qix struct {
 }
 
 func main() {
+	//Semente para o rand
 	rand.Seed(int64(time.Now().Nanosecond()))
 	t := []string{"Tranferência", "Receber", "Pagar"}
 
 	for {
+		// Sorteia um tipo de transferência e um valor de complexidade
 		q := Qix{t[rand.Intn((len(t)))], 1 + rand.Intn(10)}
-		// fmt.Println(q)
+		// Codifica json
 		jsonReq, err := json.Marshal(q)
 		if err != nil {
 			log.Fatalln(err)
@@ -32,7 +34,7 @@ func main() {
 		} else {
 			fmt.Println("Transação enviada: ", q)
 		}
-
+		// Espera 1 segundo
 		time.Sleep(1 * time.Second)
 	}
 }

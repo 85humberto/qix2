@@ -1,0 +1,30 @@
+syntax = "proto3";
+option go_package = "/pb";
+package qix2;
+
+service Qix {
+  rpc EnviaQix (QixRequest) returns (QixReply) {}
+}
+
+message QixRequest {
+  string transacao = 1;
+  int32 complexidade = 2;
+}
+
+message QixReply {
+  string servidor = 1;
+  bool sucesso = 2;  
+}
+
+service Load {
+  rpc EnviaLoad (LoadInfo) returns (LoadRecebido) {}
+}
+
+message LoadInfo {
+  string servidor = 1;
+  int64 load = 2;  
+}
+
+message LoadRecebido {
+  bool sucesso = 1;
+}
