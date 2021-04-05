@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -15,8 +17,24 @@ import (
 )
 
 const (
-	address = "localhost:50051"
+	addressSerQix = "localhost:50051"
+	portSerLoad   = ":50052"
 )
+
+var wg sync.WaitGroup
+
+// type serverQix struct {
+// 	pb.UnimplementedQixServer
+// }
+
+type serverLoad struct {
+	pb.UnimplementedLoadServer
+}
+
+func (s *serverLoad) EnviaLoad(ctx context.Context, in *pb.LoadInfo) (*pb.LoadRecebido, error) {
+	log.Printf("Servidor %v com %d", in.Servidor, in.Load)
+	return &pb.LoadRecebido{Sucesso: true}, nil
+}
 
 type Qix struct {
 	Transação    string `json:"transacao"`
@@ -24,6 +42,20 @@ type Qix struct {
 }
 
 func main() {
+	defer wg.Done()
+	wg.Add(1)
+	go func() {
+		lis, err := net.Listen("tcp", portSerLoad)
+		if err != nil {
+			log.Fatalf("failed to listen: %v", err)
+		}
+		s := grpc.NewServer()
+		pb.RegisterLoadServer(s, &serverLoad{})
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
 	router := mux.NewRouter()
 	router.HandleFunc("/qix", createQix).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
@@ -36,9 +68,9 @@ func createQix(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Transação recebida: ", q)
 
 	//grpc
-	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.Dial(addressSerQix, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatalf("Não foi possível conectar: %v", err)
 	}
 	defer conn.Close()
 	c := pb.NewQixClient(conn)
@@ -47,11 +79,9 @@ func createQix(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	tq, err := c.EnviaQix(ctx, &pb.QixRequest{Transacao: q.Transação, Complexidade: int32(q.Complexidade)})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Fatalf("Não foi possível transmitir para o server: %v", err)
 	}
 	log.Printf("Envio %t", tq.GetSucesso())
-	// w.Header().Set("Content-Type", "application/json")
-	// json.NewEncoder(w).Encode(q)
 }
 
 // curl -H 'Content-Type: application/json' -d '{"transacao":"pagamento","complexidade":9}' -X POST http://localhost:8080/qix
