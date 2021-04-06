@@ -1,0 +1,12 @@
+version: "3.3"
+services:
+  server1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        KIND: server
+    container_name: 85humberto/qix2-server
+  server2:
+    image: "85humberto/qix2-server"
+
