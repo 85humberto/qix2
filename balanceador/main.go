@@ -68,7 +68,7 @@ func (b *Backend) ModificaStatus(s bool) {
 //Pega o servidor com o menor Load e retorna a URL
 func ProximoServer() string {
 	v := serverpool.backends[0].Load
-	var p string
+	p := serverpool.backends[0].URL
 	// for _, s := range serverpool.backends {
 	// 	if s.Load <= int64(v) {
 	// 		p = s.URL
