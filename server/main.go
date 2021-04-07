@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -14,9 +15,10 @@ import (
 
 const (
 	portSerQix     = ":50051"
-	addressSerLoad = "localhost:50052"
+	addressSerLoad = "balanceador:50052"
 )
 
+var hostname string
 var load = 0
 var wg sync.WaitGroup
 
@@ -24,9 +26,9 @@ type serverQix struct {
 	pb.UnimplementedQixServer
 }
 
-type serverLoad struct {
-	pb.UnimplementedLoadServer
-}
+// type serverLoad struct {
+// 	pb.UnimplementedLoadServer
+// }
 
 func (s *serverQix) EnviaQix(ctx context.Context, in *pb.QixRequest) (*pb.QixReply, error) {
 	load += int(in.Complexidade)
@@ -57,7 +59,7 @@ func enviaLoad() {
 		c := pb.NewLoadClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		tl, err := c.EnviaLoad(ctx, &pb.LoadInfo{Servidor: "Servidor 1", Load: int64(load)})
+		tl, err := c.EnviaLoad(ctx, &pb.LoadInfo{Servidor: hostname, Load: int64(load)})
 		if err != nil {
 			log.Fatalf("Não foi possível transmitir para o server: %v", err)
 		}
@@ -66,6 +68,11 @@ func enviaLoad() {
 }
 
 func main() {
+	// define hostname
+	flag.Parse()
+	hostname = flag.Arg(0)
+
+	//gerenciamento das gorouteines
 	wg.Add(1)
 	go trabalha()
 	wg.Add(1)

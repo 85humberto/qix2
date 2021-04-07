@@ -1,12 +1,31 @@
-version: "3.3"
+version: "3"
 services:
+  cliente:
+    image: "85humberto/qix2-cliente"
+    container_name: cliente
+    depends_on: 
+      - balanceador
+  balanceador:
+    image: "85humberto/qix2-balanceador"
+    container_name: balanceador
+    command: ./main server1 server2 server3 server4 server5
   server1:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        KIND: server
-    container_name: 85humberto/qix2-server
+    image: "85humberto/qix2-server"
+    container_name: server1
+    command: ./main server1
   server2:
     image: "85humberto/qix2-server"
-
+    container_name: server2
+    command: ./main server2
+  server3:
+    image: "85humberto/qix2-server"
+    container_name: server3
+    command: ./main server3
+  server4:
+    image: "85humberto/qix2-server"
+    container_name: server4
+    command: ./main server4
+  server5:
+    image: "85humberto/qix2-server"
+    container_name: server5
+    command: ./main server5

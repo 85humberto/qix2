@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -17,21 +18,18 @@ import (
 )
 
 const (
-	addressSerQix = "localhost:50051"
-	portSerLoad   = ":50052"
+	// addressSerQix = "server1:50051"
+	portSerLoad = ":50052"
 )
 
 var wg sync.WaitGroup
-
-// type serverQix struct {
-// 	pb.UnimplementedQixServer
-// }
 
 type serverLoad struct {
 	pb.UnimplementedLoadServer
 }
 
 func (s *serverLoad) EnviaLoad(ctx context.Context, in *pb.LoadInfo) (*pb.LoadRecebido, error) {
+	ModificaLoad(in.Servidor, in.Load)
 	log.Printf("Servidor %v com %d", in.Servidor, in.Load)
 	return &pb.LoadRecebido{Sucesso: true}, nil
 }
@@ -41,7 +39,65 @@ type Qix struct {
 	Complexidade int    `json:"complexidade"`
 }
 
+type Backend struct {
+	URL    string
+	Load   int64
+	Status bool
+}
+
+type ServerPool struct {
+	backends []*Backend
+}
+
+func (s *ServerPool) AddBackend(backend *Backend) {
+	s.backends = append(s.backends, backend)
+}
+
+func ModificaLoad(server string, load int64) {
+	for _, s := range serverpool.backends {
+		if s.URL == server {
+			s.Load = load
+		}
+	}
+}
+
+func (b *Backend) ModificaStatus(s bool) {
+	b.Status = s
+}
+
+//Pega o servidor com o menor Load e retorna a URL
+func ProximoServer() string {
+	v := serverpool.backends[0].Load
+	var p string
+	// for _, s := range serverpool.backends {
+	// 	if s.Load <= int64(v) {
+	// 		p = s.URL
+	// 	}
+	// }
+	for i := 1; i < len(serverpool.backends); i++ {
+		if serverpool.backends[i].Load <= v {
+			p = serverpool.backends[i].URL
+			// } else {
+			// 	p = serverpool.backends[i+1].URL
+		}
+	}
+	return p
+}
+
+var serverpool ServerPool
+
 func main() {
+	// define backends
+	flag.Parse()
+	servers := flag.Args()
+	for _, s := range servers {
+		b := Backend{
+			URL:    s,
+			Status: true,
+		}
+		serverpool.AddBackend(&b)
+	}
+
 	defer wg.Done()
 	wg.Add(1)
 	go func() {
@@ -67,8 +123,10 @@ func createQix(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&q)
 	fmt.Println("Transação recebida: ", q)
 
+	ps := ProximoServer() + ":50051"
+	fmt.Println(ps)
 	//grpc
-	conn, err := grpc.Dial(addressSerQix, grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.Dial(ps, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("Não foi possível conectar: %v", err)
 	}
