@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"sort"
@@ -77,12 +78,35 @@ func (b *Backend) ModificaStatus(s bool) {
 func ProximoServer() string {
 	sort.Sort(ByLoad(serverpool.backends))
 	VerificaStatus()
+	//lista de identificadores dos servidores ativos
+	var l []int
 	for i := 0; i < len(serverpool.backends); i++ {
 		if serverpool.backends[i].Status {
-			return serverpool.backends[i].URL
+			l = append(l, i)
 		}
 	}
-	return ""
+	log.Println("Lista com a posição no slice dos servidores ativos", l)
+	// caso tenha somente 1 servidor ativo
+	if len(l) == 1 {
+		return serverpool.backends[l[0]].URL
+	} else if len(l) != 0 {
+		//metade inferior da lista
+		lf := l[:(len(l) / 2)]
+		log.Println("Metade inferior da lista", lf)
+		//aumenta a probabilidade de sorteio de metade da parte inferior do slice
+		for j := 1; j <= 2; j++ {
+			for i := 0; i < len(l)/4; i++ {
+				lf = append(lf, lf[i])
+			}
+		}
+		log.Println("Lista com aumento de probabilidade", lf)
+		// cria um seed para rand e sorteia.
+		rand.Seed(int64(time.Now().Nanosecond()))
+		return serverpool.backends[lf[rand.Intn((len(lf)))]].URL
+	} else {
+		//caso não tenha nenhum servidor ativo
+		return ""
+	}
 }
 
 func VerificaStatus() {

@@ -8,7 +8,7 @@ services:
   balanceador:
     image: "85humberto/qix2-balanceador"
     container_name: balanceador
-    command: ./main server1 server2 server3 server4 server5
+    command: ./main server1 server2 server3 server4 server5 server6 server7 server8
   server1:
     image: "85humberto/qix2-server"
     container_name: server1
@@ -29,3 +29,15 @@ services:
     image: "85humberto/qix2-server"
     container_name: server5
     command: ./main server5
+  server6:
+    image: "85humberto/qix2-server"
+    container_name: server6
+    command: ./main server6
+  server7:
+    image: "85humberto/qix2-server"
+    container_name: server7
+    command: ./main server7
+  server8:
+    image: "85humberto/qix2-server"
+    container_name: server8
+    command: ./main server8

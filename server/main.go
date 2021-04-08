@@ -40,9 +40,9 @@ func trabalha() {
 	defer wg.Done()
 	for {
 		log.Printf("Load atual %d\n", load)
-		time.Sleep(3 * time.Second)
+		time.Sleep(1 * time.Second)
 		if load > 0 {
-			load -= 3
+			load -= 1
 		}
 	}
 }
