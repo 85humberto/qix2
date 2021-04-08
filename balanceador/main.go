@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	// addressSerQix = "server1:50051"
 	portSerLoad = ":50052"
 )
 
@@ -46,7 +45,8 @@ type Backend struct {
 	Counter int
 }
 
-type ByLoad []Backend
+//funções de ordenação
+type ByLoad []*Backend
 
 func (a ByLoad) Len() int           { return len(a) }
 func (a ByLoad) Less(i, j int) bool { return a[i].Load < a[j].Load }
@@ -64,6 +64,8 @@ func ModificaLoad(server string, load int64) {
 	for _, s := range serverpool.backends {
 		if s.URL == server {
 			s.Load = load
+			//zera contador quando recebe um load.
+			s.Counter = 0
 		}
 	}
 }
@@ -72,16 +74,26 @@ func (b *Backend) ModificaStatus(s bool) {
 	b.Status = s
 }
 
-//Pega o servidor com o menor Load e retorna a URL
 func ProximoServer() string {
-	v := serverpool.backends[0].Load
-	p := serverpool.backends[0].URL
-	for i := 1; i < len(serverpool.backends); i++ {
-		if serverpool.backends[i].Load <= v {
-			p = serverpool.backends[i].URL
+	sort.Sort(ByLoad(serverpool.backends))
+	VerificaStatus()
+	for i := 0; i < len(serverpool.backends); i++ {
+		if serverpool.backends[i].Status {
+			return serverpool.backends[i].URL
 		}
 	}
-	return p
+	return ""
+}
+
+func VerificaStatus() {
+	for i := 0; i < len(serverpool.backends); i++ {
+		if serverpool.backends[i].Counter >= 3 {
+			serverpool.backends[i].Status = false
+			log.Printf("Sem comunicação com o servidor %s", serverpool.backends[i].URL)
+		} else {
+			serverpool.backends[i].Status = true
+		}
+	}
 }
 
 var serverpool ServerPool
@@ -100,11 +112,14 @@ func main() {
 
 	defer wg.Done()
 	wg.Add(1)
+	//goroutina do servidor grpc para receber informações de load dos servers
 	go func() {
+		//abre porta pra escutar
 		lis, err := net.Listen("tcp", portSerLoad)
 		if err != nil {
 			log.Fatalf("failed to listen: %v", err)
 		}
+		//cria servidor grpc
 		s := grpc.NewServer()
 		pb.RegisterLoadServer(s, &serverLoad{})
 		if err := s.Serve(lis); err != nil {
@@ -112,20 +127,34 @@ func main() {
 		}
 	}()
 
+	wg.Add(1)
+	//goroutina para incrementar o contador dos servers a cada 10 segundos.
+	go func() {
+		for {
+			time.Sleep(10 * time.Second)
+			for i := 0; i < len(serverpool.backends); i++ {
+				serverpool.backends[i].Counter += 1
+			}
+		}
+	}()
+	//criar servidor http e define a rota /qix
 	router := mux.NewRouter()
 	router.HandleFunc("/qix", createQix).Methods("POST")
-	// log.Print(http.ListenAndServe(":8080", router))
-	http.ListenAndServe(":8080", router)
+	log.Print(http.ListenAndServe(":8080", router))
 }
 
 func createQix(w http.ResponseWriter, r *http.Request) {
 	var q Qix
 	json.NewDecoder(r.Body).Decode(&q)
-	fmt.Println("Transação recebida: ", q)
-
-	ps := ProximoServer() + ":50051"
-	fmt.Println(ps)
-	//grpc
+	log.Println("Transação recebida: ", q)
+	//define próximo servidor
+	ps := ProximoServer()
+	if ps != "" {
+		ps += ":50051"
+	} else {
+		log.Println("Nenhum servidor ativo no momento.")
+	}
+	//Enviar a transação e o load para o server com menor carga
 	conn, err := grpc.Dial(ps, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(time.Duration(5)*time.Second))
 	if err != nil {
 		log.Printf("Não foi possível conectar: %v", err)
@@ -140,5 +169,5 @@ func createQix(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Não foi possível transmitir para o server: %v", err)
 		return
 	}
-	log.Printf("Envio %t", tq.GetSucesso())
+	log.Printf("Recebido pelo servidor %v: %t", tq.Servidor, tq.GetSucesso())
 }

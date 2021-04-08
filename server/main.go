@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -26,23 +25,24 @@ type serverQix struct {
 	pb.UnimplementedQixServer
 }
 
-// type serverLoad struct {
-// 	pb.UnimplementedLoadServer
-// }
-
 func (s *serverQix) EnviaQix(ctx context.Context, in *pb.QixRequest) (*pb.QixReply, error) {
-	load += int(in.Complexidade)
-	log.Printf("Transação recebida: %v %d", in.Transacao, in.Complexidade)
-	return &pb.QixReply{Sucesso: true}, nil
+	if (load + int(in.Complexidade)) > 100 {
+		log.Println("Transação rejeitada, servidor sobrecarregado")
+		return &pb.QixReply{Sucesso: false}, nil
+	} else {
+		load += int(in.Complexidade)
+		log.Printf("Transação recebida: %v %d", in.Transacao, in.Complexidade)
+		return &pb.QixReply{Servidor: hostname, Sucesso: true}, nil
+	}
 }
 
 func trabalha() {
 	defer wg.Done()
 	for {
-		fmt.Printf("Load atual %d\n", load)
-		time.Sleep(1 * time.Second)
+		log.Printf("Load atual %d\n", load)
+		time.Sleep(3 * time.Second)
 		if load > 0 {
-			load--
+			load -= 3
 		}
 	}
 }
@@ -71,17 +71,17 @@ func main() {
 	// define hostname
 	flag.Parse()
 	hostname = flag.Arg(0)
-
-	//gerenciamento das gorouteines
+	//inicia das gorouteines
 	wg.Add(1)
 	go trabalha()
 	wg.Add(1)
 	go enviaLoad()
-
+	//abre porta pra escutar
 	lis, err := net.Listen("tcp", portSerQix)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+	//cria servidor grpc
 	s := grpc.NewServer()
 	pb.RegisterQixServer(s, &serverQix{})
 	if err := s.Serve(lis); err != nil {
