@@ -30,7 +30,7 @@ func main() {
 		}
 		_, err = http.Post("http://balanceador:8080/qix", "application/json; charset=utf-8", bytes.NewBuffer(jsonReq))
 		if err != nil {
-			log.Fatalln(err)
+			log.Println(err)
 		} else {
 			fmt.Println("Transação enviada: ", q)
 		}

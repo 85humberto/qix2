@@ -40,10 +40,17 @@ type Qix struct {
 }
 
 type Backend struct {
-	URL    string
-	Load   int64
-	Status bool
+	URL     string
+	Load    int64
+	Status  bool
+	Counter int
 }
+
+type ByLoad []Backend
+
+func (a ByLoad) Len() int           { return len(a) }
+func (a ByLoad) Less(i, j int) bool { return a[i].Load < a[j].Load }
+func (a ByLoad) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type ServerPool struct {
 	backends []*Backend
@@ -69,16 +76,9 @@ func (b *Backend) ModificaStatus(s bool) {
 func ProximoServer() string {
 	v := serverpool.backends[0].Load
 	p := serverpool.backends[0].URL
-	// for _, s := range serverpool.backends {
-	// 	if s.Load <= int64(v) {
-	// 		p = s.URL
-	// 	}
-	// }
 	for i := 1; i < len(serverpool.backends); i++ {
 		if serverpool.backends[i].Load <= v {
 			p = serverpool.backends[i].URL
-			// } else {
-			// 	p = serverpool.backends[i+1].URL
 		}
 	}
 	return p
@@ -108,14 +108,14 @@ func main() {
 		s := grpc.NewServer()
 		pb.RegisterLoadServer(s, &serverLoad{})
 		if err := s.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+			log.Printf("failed to serve: %v", err)
 		}
 	}()
 
 	router := mux.NewRouter()
 	router.HandleFunc("/qix", createQix).Methods("POST")
-	log.Fatal(http.ListenAndServe(":8080", router))
-
+	// log.Print(http.ListenAndServe(":8080", router))
+	http.ListenAndServe(":8080", router)
 }
 
 func createQix(w http.ResponseWriter, r *http.Request) {
@@ -126,20 +126,19 @@ func createQix(w http.ResponseWriter, r *http.Request) {
 	ps := ProximoServer() + ":50051"
 	fmt.Println(ps)
 	//grpc
-	conn, err := grpc.Dial(ps, grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.Dial(ps, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(time.Duration(5)*time.Second))
 	if err != nil {
-		log.Fatalf("Não foi possível conectar: %v", err)
+		log.Printf("Não foi possível conectar: %v", err)
+		return
 	}
 	defer conn.Close()
 	c := pb.NewQixClient(conn)
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	tq, err := c.EnviaQix(ctx, &pb.QixRequest{Transacao: q.Transação, Complexidade: int32(q.Complexidade)})
 	if err != nil {
-		log.Fatalf("Não foi possível transmitir para o server: %v", err)
+		log.Printf("Não foi possível transmitir para o server: %v", err)
+		return
 	}
 	log.Printf("Envio %t", tq.GetSucesso())
 }
-
-// curl -H 'Content-Type: application/json' -d '{"transacao":"pagamento","complexidade":9}' -X POST http://localhost:8080/qix
